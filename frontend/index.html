@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Support - Get Your Action Plan</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #333; line-height: 1.6; }
+        .container { max-width: 700px; margin: 40px auto; padding: 0 20px; }
+        h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        .subtitle { color: #666; margin-bottom: 32px; }
+        .form-group { margin-bottom: 24px; }
+        label { display: block; font-weight: 600; margin-bottom: 8px; }
+        textarea { width: 100%; min-height: 150px; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; resize: vertical; }
+        textarea:focus { outline: none; border-color: #4a90d9; }
+        input[type="email"] { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1rem; }
+        .btn { background: #1a5c38; color: #fff; border: none; padding: 14px 32px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; width: 100%; }
+        .btn:hover { background: #144a2d; }
+        .btn:disabled { background: #999; cursor: not-allowed; }
+        .results { margin-top: 32px; }
+        .action-item { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .action-item a { color: #1a5c38; }
+        .spinner { display: none; text-align: center; padding: 20px; }
+        .spinner.active { display: block; }
+        .success-msg { background: #d4edda; border: 1px solid #c3e6cb; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+        .optional { color: #888; font-weight: normal; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Family Support</h1>
+        <p class="subtitle">Tell us about your situation and we'll create a personalised action plan for you.</p>
+
+        <form id="supportForm">
+            <div class="form-group">
+                <label for="circumstances">Describe your circumstances</label>
+                <textarea id="circumstances" placeholder="Tell us what's happening and what kind of support you're looking for..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email address <span class="optional">(optional - for receiving your plan)</span></label>
+                <input type="email" id="email" placeholder="your@email.com">
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">Get My Action Plan</button>
+        </form>
+
+        <div class="spinner" id="spinner">
+            <p>Generating your personalised action plan...</p>
+        </div>
+
+        <div class="results" id="results" style="display:none;">
+            <div class="success-msg" id="successMsg"></div>
+            <h2>Your Action Plan</h2>
+            <div id="actionsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('supportForm');
+        const spinner = document.getElementById('spinner');
+        const results = document.getElementById('results');
+        const API_BASE = '/api';
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const circumstances = document.getElementById('circumstances').value.trim();
+            const email = document.getElementById('email').value.trim();
+
+            if (!circumstances) return;
+
+            document.getElementById('submitBtn').disabled = true;
+            spinner.classList.add('active');
+            results.style.display = 'none';
+
+            try {
+                // Step 1: Generate action plan via AI
+                const aiResponse = await fetch(`${API_BASE}/call-ai`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ circumstances })
+                });
+                const { actions } = await aiResponse.json();
+
+                // Step 2: Create case and send email
+                const caseResponse = await fetch(`${API_BASE}/create-case`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ circumstances, email, actions })
+                });
+                const { caseReference } = await caseResponse.json();
+
+                // Step 3: Display results
+                displayResults(actions, caseReference, email);
+            } catch (err) {
+                alert('Something went wrong. Please try again.');
+                console.error(err);
+            } finally {
+                spinner.classList.remove('active');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+
+        function displayResults(actions, caseRef, email) {
+            const msg = email
+                ? `Your action plan has been emailed to <strong>${escapeHtml(email)}</strong>. Reference: <strong>${caseRef}</strong>`
+                : `Your reference number is <strong>${caseRef}</strong>`;
+
+            document.getElementById('successMsg').innerHTML = msg;
+            document.getElementById('actionsList').innerHTML = actions
+                .map((a, i) => `<div class="action-item"><strong>${i + 1}.</strong> ${linkify(escapeHtml(a))}</div>`)
+                .join('');
+
+            results.style.display = 'block';
+            results.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function linkify(text) {
+            return text.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+        }
+    </script>
+</body>
+</html>
